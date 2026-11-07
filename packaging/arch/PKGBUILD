@@ -1,0 +1,49 @@
+# Maintainer: Cody <cody@goldberg.fyi>
+
+pkgname=snd-usb-audio-alc4082-cachyos
+pkgver=7.2.7
+pkgrel=1
+pkgdesc='DKMS snd-usb-audio override for the ASRock ALC4082 rear microphone'
+arch=('x86_64')
+url='https://www.kernel.org/'
+license=('GPL-2.0-only')
+depends=('dkms' 'linux-cachyos' 'linux-cachyos-headers' 'make')
+
+_module_name=snd-usb-audio-alc4082
+_patch=0001-ALSA-usb-audio-enable-ASRock-ALC4082-rear-capture.patch
+
+source=(
+    "https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-${pkgver}.tar.xz"
+    "${_patch}"
+    'dkms.conf'
+    'README.md'
+)
+noextract=("linux-${pkgver}.tar.xz")
+sha256sums=(
+    '4ac34c47db2540ffb2713943f8d891ff1702e0ba6934525a493b7d1cad43145a'
+    '07a1076b30d2fb225f94cd711beb19a240e0184a2dfb2a85364424637155ce01'
+    '8ba8f1a726c63ed45f82556ce51520bc8124f4a156ac343a2003b161a99e4817'
+    '60e40d84ebe620c1c88d628f7f99d34aadadc23d051809712c4556860cb8232d'
+)
+
+prepare() {
+    tar -xJf "${srcdir}/linux-${pkgver}.tar.xz" -C "${srcdir}" \
+        "linux-${pkgver}/sound/usb"
+    cd "linux-${pkgver}"
+    patch -Np1 <"${srcdir}/${_patch}"
+}
+
+package() {
+    local source_dir="${srcdir}/linux-${pkgver}/sound/usb"
+    local destination="${pkgdir}/usr/src/${_module_name}-${pkgver}"
+    local file
+
+    for file in "${source_dir}"/*.c "${source_dir}"/*.h "${source_dir}/Makefile"; do
+        install -Dm644 "${file}" "${destination}/${file##*/}"
+    done
+    install -Dm644 "${srcdir}/dkms.conf" "${destination}/dkms.conf"
+    install -Dm644 "${srcdir}/README.md" \
+        "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+    install -Dm644 "${srcdir}/${_patch}" \
+        "${pkgdir}/usr/share/doc/${pkgname}/${_patch}"
+}

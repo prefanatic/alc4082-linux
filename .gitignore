@@ -1,0 +1,13 @@
+alc4082-reg
+*.ko
+*.o
+*.pcap
+*.pcapng
+*.wav
+*.sys
+*.zip
+results/
+*.pkg.tar.*
+packaging/arch/pkg/
+packaging/arch/src/
+packaging/arch/linux-*.tar.*

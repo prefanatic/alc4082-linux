@@ -1,0 +1,22 @@
+pkgbase = snd-usb-audio-alc4082-cachyos
+	pkgdesc = DKMS snd-usb-audio override for the ASRock ALC4082 rear microphone
+	pkgver = 7.2.7
+	pkgrel = 1
+	url = https://www.kernel.org/
+	arch = x86_64
+	license = GPL-2.0-only
+	depends = dkms
+	depends = linux-cachyos
+	depends = linux-cachyos-headers
+	depends = make
+	noextract = linux-7.2.7.tar.xz
+	source = https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.7.tar.xz
+	source = 0001-ALSA-usb-audio-enable-ASRock-ALC4082-rear-capture.patch
+	source = dkms.conf
+	source = README.md
+	sha256sums = 4ac34c47db2540ffb2713943f8d891ff1702e0ba6934525a493b7d1cad43145a
+	sha256sums = 07a1076b30d2fb225f94cd711beb19a240e0184a2dfb2a85364424637155ce01
+	sha256sums = 8ba8f1a726c63ed45f82556ce51520bc8124f4a156ac343a2003b161a99e4817
+	sha256sums = 60e40d84ebe620c1c88d628f7f99d34aadadc23d051809712c4556860cb8232d
+
+pkgname = snd-usb-audio-alc4082-cachyos

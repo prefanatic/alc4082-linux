@@ -1,0 +1,84 @@
+From: Cody <cody@goldberg.fyi>
+Subject: [PATCH] ALSA: usb-audio: enable rear mic on ASRock 26ce:0a08
+
+The rear microphone on the ASRock X870 Steel Legend WiFi (26ce:0a08)
+enumerates and streams, but its signal is about 25 dB too quiet. The
+device's UAC2 descriptors expose mute and volume controls, but not the
+private widget assignment performed by the vendor driver.
+
+ASRock also uses this USB ID for the Z790 PG-ITX/TB4; both boards are
+specified with ALC4082 audio. The vendor driver's entry for this exact ID
+selects the same widget-assignment path, so match the USB identity rather
+than X870-specific DMI data.
+
+Assign the rear microphone widget when preparing capture endpoint 0x83. On
+the tested board after a USB reset under the stock driver, this command
+increased a fixed 1 kHz acoustic signal from -69.3 to -44.5 dBFS. A
+separate five-register transaction observed in the vendor driver made no
+additional signal-level change and is intentionally excluded.
+
+Use the mode-selection hook so a failed or short control transfer aborts
+PCM prepare and remains retryable. Endpoint preparation reapplies the
+idempotent command after close/reopen and after suspend.
+
+The command-only module was loaded before a USB re-enumeration and fixed
+the first capture prepare. It remained stable through 100 rear capture
+open/prepare/close cycles, 20 front capture cycles, all four playback PCMs,
+runtime and system suspend/resume, simultaneous capture/playback, and a
+normal PipeWire capture, with no new USB audio warnings.
+
+---
+ sound/usb/quirks.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/sound/usb/quirks.c b/sound/usb/quirks.c
+index eb1750def..8560c726c 100644
+--- a/sound/usb/quirks.c
++++ b/sound/usb/quirks.c
+@@ -1855,6 +1855,31 @@ static int rme_digiface_set_format_quirk(struct snd_usb_substream *subs)
+ 	return 0;
+ }
+ 
++#define ALC4082_REQ_WIDGET_COMMAND 0x6c
++
++static int alc4082_rear_capture_quirk(struct snd_usb_audio *chip)
++{
++	struct usb_device *dev = chip->dev;
++	u8 command = 0x0f;
++	int err;
++
++	/* The rear microphone assignment is not exposed through UAC. */
++	err = snd_usb_ctl_msg(dev, usb_sndctrlpipe(dev, 0),
++			      ALC4082_REQ_WIDGET_COMMAND,
++			      USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE,
++			      0, 1, &command, sizeof(command));
++	if (err != sizeof(command)) {
++		if (err >= 0)
++			err = -EIO;
++		usb_audio_err(chip,
++			      "failed to activate ALC4082 rear mic: %d\n",
++			      err);
++		return err;
++	}
++
++	return 0;
++}
++
+ void snd_usb_set_format_quirk(struct snd_usb_substream *subs,
+ 			      const struct audioformat *fmt)
+ {
+@@ -1894,6 +1919,12 @@ int snd_usb_select_mode_quirk(struct snd_usb_audio *chip,
+ 	struct usb_device *dev = chip->dev;
+ 	int err;
+ 
++	if (chip->usb_id == USB_ID(0x26ce, 0x0a08) && fmt->endpoint == 0x83) {
++		err = alc4082_rear_capture_quirk(chip);
++		if (err < 0)
++			return err;
++	}
++
+ 	if (chip->quirk_flags & QUIRK_FLAG_ITF_USB_DSD_DAC) {
+ 		/* First switch to alt set 0, otherwise the mode switch cmd
+ 		 * will not be accepted by the DAC
+-- 
+2.53.0

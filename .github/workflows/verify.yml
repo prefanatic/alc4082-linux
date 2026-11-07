@@ -1,0 +1,64 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install probe dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libusb-1.0-0-dev ripgrep
+      - name: Build probe and check shell syntax
+        run: |
+          make
+          bash -n tools/run-register-ablation.sh
+      - name: Check package files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp patches/0001-ALSA-usb-audio-enable-ASRock-ALC4082-rear-capture.patch \
+            packaging/arch/0001-ALSA-usb-audio-enable-ASRock-ALC4082-rear-capture.patch
+          (
+            cd packaging/arch
+            source PKGBUILD
+            for index in "${!source[@]}"; do
+              if [[ ${source[index]} == https://* ]]; then
+                continue
+              fi
+              printf '%s  %s\n' "${sha256sums[index]}" "${source[index]}" |
+                sha256sum --check
+            done
+          )
+      - name: Check patch base
+        shell: bash
+        run: |
+          set -euo pipefail
+          source packaging/arch/PKGBUILD
+          mkdir -p "$RUNNER_TEMP/linux/sound/usb"
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/gregkh/linux/v${pkgver}/sound/usb/quirks.c" \
+            --output "$RUNNER_TEMP/linux/sound/usb/quirks.c"
+          printf '%s  %s\n' \
+            37b283af43eab7531f3941373189d3420470cbc1d074787af7583fba04ecbfd5 \
+            "$RUNNER_TEMP/linux/sound/usb/quirks.c" | sha256sum --check
+          patch --dry-run --directory "$RUNNER_TEMP/linux" -p1 \
+            < patches/0001-ALSA-usb-audio-enable-ASRock-ALC4082-rear-capture.patch
+      - name: Check excluded evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | rg '(^results/|^captures/.*\.(pcap|pcapng|wav)$|\.sys$|\.pkg\.tar\.|^packaging/arch/linux-.*\.tar\.|^alc4082-reg$)'; then
+            echo 'A private capture or build file is tracked.' >&2
+            exit 1
+          fi
